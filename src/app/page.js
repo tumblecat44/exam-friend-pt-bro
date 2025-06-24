@@ -15,6 +15,8 @@ import {
   Check,
   Eye,
   BookOpen,
+  User,
+  Send,
 } from "lucide-react";
 
 export default function Home() {
@@ -28,6 +30,10 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState("");
+  const [userName, setUserName] = useState("");
+  const [showNameInput, setShowNameInput] = useState(false);
+  const [isSendingToDiscord, setIsSendingToDiscord] = useState(false);
+  const [discordSent, setDiscordSent] = useState(false);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -54,6 +60,18 @@ export default function Home() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [isQuizInProgress]);
+
+  // Auto-send to Discord when results are shown
+  useEffect(() => {
+    if (showResults && !discordSent && userName && questions.length > 0) {
+      // Auto-send to Discord after a short delay
+      const timer = setTimeout(() => {
+        sendToDiscord();
+      }, 1000); // 1 second delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [showResults, discordSent, userName, questions.length]);
 
   const handleFileUpload = async (e) => {
     const uploadedFile = e.target.files[0];
@@ -114,6 +132,8 @@ export default function Home() {
       setTimeout(() => {
         setQuestions(data.questions);
         setIsLoading(false);
+        // Show name input after questions are generated
+        setShowNameInput(true);
       }, 500);
     } catch (error) {
       console.error("Error:", error);
@@ -145,6 +165,15 @@ export default function Home() {
 
       setError(errorMessage);
     }
+  };
+
+  const handleStartQuiz = () => {
+    if (!userName.trim()) {
+      setError("이름을 입력해주세요.");
+      return;
+    }
+    setShowNameInput(false);
+    setError("");
   };
 
   const handleAnswerSelect = (questionId, answer) => {
@@ -205,6 +234,39 @@ export default function Home() {
     }
   };
 
+  const sendToDiscord = async () => {
+    if (discordSent) return;
+
+    setIsSendingToDiscord(true);
+    try {
+      const response = await fetch("/api/send-discord", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: userName,
+          score: calculateScore(),
+          totalQuestions: questions.length,
+          correctAnswers: getCorrectAnswersCount(),
+          incorrectAnswers: getIncorrectAnswersCount(),
+          fileName: file.name,
+        }),
+      });
+
+      if (response.ok) {
+        setDiscordSent(true);
+      } else {
+        throw new Error("저장에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("Error sending to Discord:", error);
+      setError("저장에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSendingToDiscord(false);
+    }
+  };
+
   const resetQuiz = () => {
     setFile(null);
     setQuestions([]);
@@ -214,6 +276,9 @@ export default function Home() {
     setShowReview(false);
     setReviewMode("all");
     setError("");
+    setUserName("");
+    setShowNameInput(false);
+    setDiscordSent(false);
   };
 
   return (
@@ -235,7 +300,7 @@ export default function Home() {
           <h1 className="mb-3 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-5xl font-bold tracking-tight text-transparent sm:text-6xl">
             시험 친구 피티형
           </h1>
-          <p className="text-lg text-slate-600">AI가 만드는 맞춤형 학습 경험</p>
+          <p className="text-lg text-slate-600">혼자서도 즐기는 문제 문답</p>
         </div>
 
         {!file ? (
@@ -310,7 +375,57 @@ export default function Home() {
         ) : (
           <div className="mx-auto max-w-4xl">
             <div className="overflow-hidden rounded-2xl bg-white/80 shadow-xl ring-1 ring-slate-200/50 backdrop-blur-sm">
-              {!showResults ? (
+              {showNameInput ? (
+                <div className="p-12 text-center">
+                  <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
+                    <User className="h-10 w-10 text-white" />
+                  </div>
+
+                  <h2 className="mb-6 text-3xl font-bold text-slate-800">
+                    이름을 입력해주세요
+                  </h2>
+                  <p className="mb-8 text-slate-600">
+                    당신의 이름은 무엇입니까?
+                  </p>
+
+                  <div className="mx-auto mb-8 max-w-md">
+                    <input
+                      type="text"
+                      value={userName}
+                      onChange={(e) => setUserName(e.target.value)}
+                      placeholder="이름을 입력하세요"
+                      className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-lg transition-colors focus:border-blue-500 focus:outline-none"
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          handleStartQuiz();
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {error && (
+                    <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
+                      <div className="flex items-start space-x-3">
+                        <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
+                        <div>
+                          <h3 className="font-medium text-red-800">
+                            오류 발생
+                          </h3>
+                          <p className="mt-1 text-sm text-red-600">{error}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleStartQuiz}
+                    className="inline-flex items-center space-x-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-8 py-4 text-white shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl active:scale-95"
+                  >
+                    <span>퀴즈 시작하기</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : !showResults ? (
                 <>
                   {/* Header */}
                   <div className="border-b border-slate-200/50 bg-gradient-to-r from-slate-50 to-blue-50/50 px-8 py-6">
@@ -325,7 +440,7 @@ export default function Home() {
                           </p>
                           <p className="text-sm text-slate-500">
                             {(file.size / (1024 * 1024)).toFixed(2)}MB • PDF
-                            문서
+                            문서 • {userName}
                           </p>
                         </div>
                       </div>
@@ -521,7 +636,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col justify-center gap-4 sm:flex-row">
+                  <div className="mb-6 flex flex-col justify-center gap-4 sm:flex-row">
                     <button
                       onClick={() => setShowReview(true)}
                       className="inline-flex items-center space-x-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-8 py-4 text-white shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl active:scale-95"
@@ -529,14 +644,47 @@ export default function Home() {
                       <BookOpen className="h-4 w-4" />
                       <span>오답 확인</span>
                     </button>
-                    <button
-                      onClick={resetQuiz}
-                      className="inline-flex items-center space-x-2 rounded-xl bg-gradient-to-r from-slate-500 to-slate-600 px-8 py-4 text-white shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl active:scale-95"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      <span>다시 시작</span>
-                    </button>
                   </div>
+
+                  {/* Discord Status */}
+                  <div className="mb-6">
+                    {isSendingToDiscord ? (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                        <div className="flex items-center justify-center space-x-3">
+                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+                          <span className="font-medium text-blue-800">
+                            서버로 결과를 전송하고 있습니다...
+                          </span>
+                        </div>
+                      </div>
+                    ) : discordSent ? (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                        <div className="flex items-center justify-center space-x-3">
+                          <Check className="h-5 w-5 text-emerald-600" />
+                          <span className="font-medium text-emerald-800">
+                            서버로 결과가 전송되었습니다!
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center justify-center space-x-3">
+                          <Send className="h-5 w-5 text-slate-600" />
+                          <span className="font-medium text-slate-800">
+                            잠시 후 서버로 자동 전송됩니다
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={resetQuiz}
+                    className="inline-flex items-center space-x-2 rounded-xl bg-gradient-to-r from-slate-500 to-slate-600 px-8 py-4 text-white shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl active:scale-95"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    <span>새로운 퀴즈</span>
+                  </button>
                 </div>
               ) : (
                 <div className="p-8">

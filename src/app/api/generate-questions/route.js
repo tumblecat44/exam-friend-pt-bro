@@ -179,35 +179,159 @@ export async function POST(request) {
         maxTokens: 500,
       });
 
-      // Generate questions
+      // Generate questions with duplicate prevention
       const questions = [];
+      const usedContents = new Set(); // Track used content to prevent duplicates
+      const usedQuestions = new Set(); // Track question text to prevent duplicates
       let attempts = 0;
-      const maxAttempts = 20;
+      const maxAttempts = 50; // Increased attempts for better coverage
+      const targetQuestions = Math.min(
+        10,
+        Math.max(5, Math.floor(splitDocs.length / 1.5)),
+      ); // Minimum 5, target more questions
 
-      while (questions.length < 10 && attempts < maxAttempts) {
+      console.log(
+        `Target questions: ${targetQuestions} (based on ${splitDocs.length} content chunks)`,
+      );
+
+      while (questions.length < targetQuestions && attempts < maxAttempts) {
         attempts++;
         console.log(
-          `Attempt ${attempts}: Generating question ${questions.length + 1}/10`,
+          `Attempt ${attempts}: Generating question ${questions.length + 1}/${targetQuestions}`,
         );
 
         // Get a random chunk of text for question generation
-        const randomIndex = Math.floor(Math.random() * splitDocs.length);
-        const content = splitDocs[randomIndex].pageContent;
+        const availableChunks = splitDocs.filter(
+          (_, index) => !usedContents.has(index),
+        );
 
-        if (!content || content.trim().length === 0) {
-          console.warn(
-            `Empty content found at index ${randomIndex}, skipping...`,
+        if (availableChunks.length === 0) {
+          console.log(
+            "No more unique content chunks available, trying to reuse with different approach",
           );
-          continue;
-        }
+          // If no more unique chunks, try to generate from already used chunks with different prompts
+          const randomChunk =
+            splitDocs[Math.floor(Math.random() * splitDocs.length)];
+          const content = randomChunk.pageContent;
 
-        const prompt = `
+          if (!content || content.trim().length === 0) {
+            console.warn(`Empty content found, skipping...`);
+            continue;
+          }
+
+          // Use a different prompt for reused content
+          const prompt = `
+당신은 전문적인 시험 문제 출제자입니다. 주어진 내용에서 완전히 새로운 관점의 문제를 만들어주세요.
+
+[지시사항]
+- 아래 내용을 다른 각도에서 분석하여 새로운 문제를 만들어주세요
+- 이전에 출제된 문제와 완전히 다른 접근 방식으로 문제를 작성하세요
+- 같은 내용이라도 다른 측면(원인, 결과, 비교, 적용 등)을 묻는 문제로 만들어주세요
+
+[내용]
+${content}
+
+[출력 형식]
+아래 형식의 JSON 객체로 정확히 출력하세요. JSON 외의 추가 텍스트는 절대 포함하지 마세요:
+{
+  "question": "완전히 새로운 관점의 문제 내용",
+  "options": [
+    "보기 1",
+    "보기 2",
+    "보기 3",
+    "보기 4"
+  ],
+  "correctAnswer": "정답 보기"
+}
+
+[추가 조건]
+1. JSON은 반드시 올바른 형식을 갖춰야 합니다
+2. 이전 문제와 완전히 다른 관점으로 문제를 만들어주세요
+3. 정답은 반드시 보기 중 하나와 정확히 일치해야 합니다
+4. 모든 텍스트는 한글로 작성해주세요
+5. 새로운 각도에서 접근하는 문제를 만들어주세요
+`;
+
+          try {
+            const response = await model.invoke(prompt);
+            console.log("Raw response for reused content:", response);
+
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+              console.error("No JSON object found in response");
+              continue;
+            }
+
+            const jsonStr = jsonMatch[0];
+            const questionData = JSON.parse(jsonStr);
+
+            // Validate the question data
+            if (
+              !questionData.question ||
+              !Array.isArray(questionData.options) ||
+              questionData.options.length !== 4 ||
+              !questionData.correctAnswer
+            ) {
+              console.error("Invalid question format:", questionData);
+              continue;
+            }
+
+            // Check for duplicate questions
+            const questionText = questionData.question.trim().toLowerCase();
+            if (usedQuestions.has(questionText)) {
+              console.log("Duplicate question detected, skipping...");
+              continue;
+            }
+
+            // Ensure the correct answer is one of the options
+            if (!questionData.options.includes(questionData.correctAnswer)) {
+              console.error("Correct answer not in options:", questionData);
+              continue;
+            }
+
+            // Validate that all fields are non-empty strings
+            if (
+              !questionData.question.trim() ||
+              questionData.options.some((opt) => !opt.trim())
+            ) {
+              console.error("Empty fields found in question data");
+              continue;
+            }
+
+            // Add to used sets and questions array
+            usedQuestions.add(questionText);
+            questions.push(questionData);
+            console.log(
+              `Question ${questions.length} generated successfully from reused content`,
+            );
+          } catch (error) {
+            console.error(
+              "Error processing question from reused content:",
+              error,
+            );
+            continue;
+          }
+        } else {
+          const randomIndex = Math.floor(
+            Math.random() * availableChunks.length,
+          );
+          const content = availableChunks[randomIndex].pageContent;
+          const originalIndex = splitDocs.indexOf(availableChunks[randomIndex]);
+
+          if (!content || content.trim().length === 0) {
+            console.warn(`Empty content found, skipping...`);
+            usedContents.add(originalIndex);
+            continue;
+          }
+
+          const prompt = `
 당신은 전문적인 시험 문제 출제자이며, 학습자가 문서의 핵심 개념을 정확히 이해했는지 평가하는 객관식 문제를 출제합니다.
 
 [지시사항]
 - 아래에 주어진 "내용"을 꼼꼼히 분석한 후, 학습자가 반드시 이해해야 할 핵심 개념, 용어 정의, 주요 원리, 인과관계 등을 기반으로 문제를 작성하세요.
 - 단순한 암기나 사소한 정보(URL, 저자명 등)를 묻는 문제가 아니라, 실제 시험에서 유의미하게 출제될 수 있는 퀄리티 높은 문항을 작성해야 합니다.
 - 문제와 선택지는 모두 문서의 흐름과 맥락을 고려하여 자연스럽고 명확하게 구성해주세요.
+- 이미 출제된 문제와 중복되지 않도록 완전히 새로운 문제를 만들어주세요.
 
 [내용]
 ${content}
@@ -231,53 +355,138 @@ ${content}
 3. 정답은 반드시 보기 중 하나와 글자 단위로 완전히 일치해야 합니다.
 4. 모든 텍스트는 반드시 한글로 작성해주세요.
 5. 보기 항목은 모두 그럴듯해 보이도록 구성하고, 너무 눈에 띄는 오답은 피해주세요.
+6. 이전에 출제된 문제와 완전히 다른 내용으로 문제를 만들어주세요.
 `;
 
-        try {
-          const response = await model.invoke(prompt);
-          console.log("Raw response:", response);
+          try {
+            const response = await model.invoke(prompt);
+            console.log("Raw response:", response);
 
-          // Extract JSON from the response
-          const jsonMatch = response.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) {
-            console.error("No JSON object found in response");
+            // Extract JSON from the response
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+              console.error("No JSON object found in response");
+              usedContents.add(originalIndex);
+              continue;
+            }
+
+            const jsonStr = jsonMatch[0];
+            const questionData = JSON.parse(jsonStr);
+
+            // Validate the question data
+            if (
+              !questionData.question ||
+              !Array.isArray(questionData.options) ||
+              questionData.options.length !== 4 ||
+              !questionData.correctAnswer
+            ) {
+              console.error("Invalid question format:", questionData);
+              usedContents.add(originalIndex);
+              continue;
+            }
+
+            // Check for duplicate questions
+            const questionText = questionData.question.trim().toLowerCase();
+            if (usedQuestions.has(questionText)) {
+              console.log("Duplicate question detected, skipping...");
+              usedContents.add(originalIndex);
+              continue;
+            }
+
+            // Ensure the correct answer is one of the options
+            if (!questionData.options.includes(questionData.correctAnswer)) {
+              console.error("Correct answer not in options:", questionData);
+              usedContents.add(originalIndex);
+              continue;
+            }
+
+            // Validate that all fields are non-empty strings
+            if (
+              !questionData.question.trim() ||
+              questionData.options.some((opt) => !opt.trim())
+            ) {
+              console.error("Empty fields found in question data");
+              usedContents.add(originalIndex);
+              continue;
+            }
+
+            // Add to used sets and questions array
+            usedContents.add(originalIndex);
+            usedQuestions.add(questionText);
+            questions.push(questionData);
+            console.log(`Question ${questions.length} generated successfully`);
+          } catch (error) {
+            console.error("Error processing question:", error);
+            usedContents.add(originalIndex);
+            continue;
+          }
+        }
+      }
+
+      // Ensure minimum 5 questions
+      if (questions.length < 5) {
+        console.log(
+          `Only ${questions.length} questions generated, trying to generate more...`,
+        );
+
+        // Try to generate more questions with different approach
+        const remainingAttempts = 20;
+        let additionalAttempts = 0;
+
+        while (questions.length < 5 && additionalAttempts < remainingAttempts) {
+          additionalAttempts++;
+
+          // Use any available content chunk
+          const randomChunk =
+            splitDocs[Math.floor(Math.random() * splitDocs.length)];
+          const content = randomChunk.pageContent;
+
+          if (!content || content.trim().length === 0) {
             continue;
           }
 
-          const jsonStr = jsonMatch[0];
-          const questionData = JSON.parse(jsonStr);
+          const prompt = `
+간단한 객관식 문제를 만들어주세요. 주어진 내용을 바탕으로 기본적인 이해를 확인하는 문제를 작성해주세요.
 
-          // Validate the question data
-          if (
-            !questionData.question ||
-            !Array.isArray(questionData.options) ||
-            questionData.options.length !== 4 ||
-            !questionData.correctAnswer
-          ) {
-            console.error("Invalid question format:", questionData);
+[내용]
+${content}
+
+[출력 형식]
+JSON 형식으로 출력하세요:
+{
+  "question": "간단한 문제 내용",
+  "options": ["보기1", "보기2", "보기3", "보기4"],
+  "correctAnswer": "정답 보기"
+}
+`;
+
+          try {
+            const response = await model.invoke(prompt);
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) continue;
+
+            const questionData = JSON.parse(jsonMatch[0]);
+
+            if (
+              questionData.question &&
+              Array.isArray(questionData.options) &&
+              questionData.options.length === 4 &&
+              questionData.correctAnswer &&
+              questionData.options.includes(questionData.correctAnswer)
+            ) {
+              const questionText = questionData.question.trim().toLowerCase();
+              if (!usedQuestions.has(questionText)) {
+                usedQuestions.add(questionText);
+                questions.push(questionData);
+                console.log(
+                  `Additional question ${questions.length} generated`,
+                );
+              }
+            }
+          } catch (error) {
+            console.error("Error generating additional question:", error);
             continue;
           }
-
-          // Ensure the correct answer is one of the options
-          if (!questionData.options.includes(questionData.correctAnswer)) {
-            console.error("Correct answer not in options:", questionData);
-            continue;
-          }
-
-          // Validate that all fields are non-empty strings
-          if (
-            !questionData.question.trim() ||
-            questionData.options.some((opt) => !opt.trim())
-          ) {
-            console.error("Empty fields found in question data");
-            continue;
-          }
-
-          questions.push(questionData);
-          console.log(`Question ${questions.length} generated successfully`);
-        } catch (error) {
-          console.error("Error processing question:", error);
-          continue;
         }
       }
 
@@ -286,6 +495,10 @@ ${content}
           "문제 생성에 실패했습니다. PDF 내용을 다시 확인하거나 다른 파일을 시도해주세요.",
         );
       }
+
+      console.log(
+        `Successfully generated ${questions.length} unique questions`,
+      );
 
       return NextResponse.json({ questions });
     } catch (error) {
