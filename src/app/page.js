@@ -32,6 +32,7 @@ export default function Home() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState("");
   const [userName, setUserName] = useState("");
+  const [userComment, setUserComment] = useState("");
   const [showHome, setShowHome] = useState(true);
   const [showNameInput, setShowNameInput] = useState(false); // Start with name input
   const [showLengthSelection, setShowLengthSelection] = useState(false);
@@ -341,6 +342,37 @@ export default function Home() {
     setDiscordSent(false);
   };
 
+  const uploadComment = async () => {
+    if (!userComment.trim()) return; // 빈 댓글 방지
+  
+    setIsSendingToServer(true); // 로딩 상태
+    try {
+      const response = await fetch("/api/upload-comment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          comment: userComment,
+          name: userName, // 이름도 같이 보낼 수 있음
+          score: calculateScore(), // 필요 시
+        }),
+      });
+  
+      if (response.ok) {
+        setUserComment(""); // 입력창 초기화
+        setCommentSent(true); // 성공 상태
+      } else {
+        throw new Error("의견 업로드에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("Error uploading comment:", error);
+      setError("의견 저장에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSendingToServer(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Background Pattern */}
@@ -371,7 +403,7 @@ export default function Home() {
 
                 <div className="relative p-12 text-center">
                   <div className="mb-8">
-                    <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-white-500 to-white-600 shadow-lg transition-transform duration-300 group-hover:scale-110">
+                    <div className="from-white-500 to-white-600 mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg transition-transform duration-300 group-hover:scale-110">
                       <Image
                         src="/PTlogo.png"
                         alt="PT Logo"
@@ -898,6 +930,26 @@ export default function Home() {
                     <RotateCcw className="h-4 w-4" />
                     <span>새로운 퀴즈</span>
                   </button>
+                  <div className="mx-auto mb-8 flex max-w-md items-center gap-4 pt-12">
+                    <input
+                      type="text"
+                      value={userComment}
+                      onChange={(e) => setUserCo(e.target.value)}
+                      placeholder="의견이 있나요? 적어주세요"
+                      className="flex-1 rounded-xl border-2 border-slate-200 px-4 py-3 text-lg transition-colors focus:border-blue-500 focus:outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleNameSubmit();
+                      }}
+                    />
+
+                    <button
+                      onClick={uploadComment}
+                      className="inline-flex items-center space-x-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-3 text-white shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl active:scale-95"
+                    >
+                      <Send className="h-4 w-4" />
+                      <span>보내기</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="p-8">
