@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import {
   Upload,
   FileText,
@@ -39,6 +39,8 @@ export default function Home() {
   const [selectedLength, setSelectedLength] = useState("");
   const [isSendingToDiscord, setIsSendingToDiscord] = useState(false);
   const [discordSent, setDiscordSent] = useState(false);
+  const [commentDiscordSent, setCommentDiscordSent] = useState(false);
+  const [isSendingToCommentDiscord, setIsSendingToCommentDiscord] = useState(false);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -343,9 +345,9 @@ export default function Home() {
   };
 
   const uploadComment = async () => {
-    if (!userComment.trim()) return; // 빈 댓글 방지
-  
-    setIsSendingToServer(true); // 로딩 상태
+    if (commentDiscordSent) return;
+
+    setCommentDiscordSent(true);
     try {
       const response = await fetch("/api/upload-comment", {
         method: "POST",
@@ -353,23 +355,21 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          comment: userComment,
-          name: userName, // 이름도 같이 보낼 수 있음
-          score: calculateScore(), // 필요 시
+          name: userName,
+          comment: userComment
         }),
       });
-  
+
       if (response.ok) {
-        setUserComment(""); // 입력창 초기화
-        setCommentSent(true); // 성공 상태
+        setCommentDiscordSent(true);
       } else {
-        throw new Error("의견 업로드에 실패했습니다.");
+        throw new Error("저장에 실패했습니다.");
       }
     } catch (error) {
-      console.error("Error uploading comment:", error);
-      setError("의견 저장에 실패했습니다. 다시 시도해주세요.");
+      console.error("Error sending to Discord:", error);
+      setError("저장에 실패했습니다. 다시 시도해주세요.");
     } finally {
-      setIsSendingToServer(false);
+      setIsSendingToCommentDiscord(false);
     }
   };
 
@@ -934,7 +934,7 @@ export default function Home() {
                     <input
                       type="text"
                       value={userComment}
-                      onChange={(e) => setUserCo(e.target.value)}
+                      onChange={(e) => setUserComment(e.target.value)}
                       placeholder="의견이 있나요? 적어주세요"
                       className="flex-1 rounded-xl border-2 border-slate-200 px-4 py-3 text-lg transition-colors focus:border-blue-500 focus:outline-none"
                       onKeyDown={(e) => {
