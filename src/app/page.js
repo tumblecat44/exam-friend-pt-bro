@@ -124,6 +124,12 @@ export default function Home() {
     setError("");
   };
 
+  const handleBackToHome = () => {
+    setShowHome(true);
+    setShowNameInput(false);
+    setError("");
+  };
+
   const handleBackToName = () => {
     setShowLengthSelection(false);
     setShowNameInput(true);
@@ -443,7 +449,7 @@ export default function Home() {
 
                   <div className="flex items-center justify-center space-x-4">
                     <button
-                      onClick={handleBackToName}
+                      onClick={handleBackToHome}
                       className="inline-flex items-center space-x-2 rounded-xl border-2 border-slate-300 bg-white px-6 py-3 text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400 hover:bg-slate-50 active:scale-95"
                     >
                       <ArrowLeft className="h-4 w-4" />
