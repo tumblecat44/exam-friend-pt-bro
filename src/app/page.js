@@ -40,7 +40,8 @@ export default function Home() {
   const [isSendingToDiscord, setIsSendingToDiscord] = useState(false);
   const [discordSent, setDiscordSent] = useState(false);
   const [commentDiscordSent, setCommentDiscordSent] = useState(false);
-  const [isSendingToCommentDiscord, setIsSendingToCommentDiscord] = useState(false);
+  const [isSendingToCommentDiscord, setIsSendingToCommentDiscord] =
+    useState(false);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -356,7 +357,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           name: userName,
-          comment: userComment
+          comment: userComment,
         }),
       });
 
@@ -944,10 +945,17 @@ export default function Home() {
 
                     <button
                       onClick={uploadComment}
-                      className="inline-flex items-center space-x-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-3 text-white shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl active:scale-95"
+                      disabled={isSendingToCommentDiscord || commentDiscordSent}
+                      className={`inline-flex items-center space-x-2 rounded-xl px-5 py-3 text-white shadow-lg transition-all duration-200 active:scale-95 ${
+                        commentDiscordSent
+                          ? "cursor-not-allowed bg-gray-400"
+                          : "bg-gradient-to-r from-blue-500 to-blue-600 hover:scale-105 hover:shadow-xl"
+                      } `}
                     >
                       <Send className="h-4 w-4" />
-                      <span>보내기</span>
+                      <span>
+                        {commentDiscordSent ? "완료~" : "보내기"}
+                      </span>
                     </button>
                   </div>
                 </div>
