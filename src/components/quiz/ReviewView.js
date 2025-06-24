@@ -220,7 +220,7 @@ export default function ReviewView({
             className="inline-flex items-center space-x-2 rounded-xl bg-gradient-to-r from-slate-500 to-slate-600 px-8 py-3 text-white shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-xl active:scale-95"
           >
             <RotateCcw className="h-4 w-4" />
-            <span>새로운 퀴즈</span>
+            <span>새로운 문제</span>
           </button>
         </div>
       </div>
