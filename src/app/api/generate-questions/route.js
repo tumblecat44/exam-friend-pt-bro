@@ -12,6 +12,7 @@ export async function POST(request) {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
+    const length = formData.get("length") || "medium"; // Default to medium if not provided
 
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
@@ -185,13 +186,33 @@ export async function POST(request) {
       const usedQuestions = new Set(); // Track question text to prevent duplicates
       let attempts = 0;
       const maxAttempts = 50; // Increased attempts for better coverage
-      const targetQuestions = Math.min(
-        10,
-        Math.max(5, Math.floor(splitDocs.length / 1.5)),
-      ); // Minimum 5, target more questions
+
+      // Calculate target questions based on length preference
+      let targetQuestions;
+      switch (length) {
+        case "short":
+          targetQuestions = Math.min(
+            7,
+            Math.max(5, Math.floor(splitDocs.length / 2)),
+          );
+          break;
+        case "long":
+          targetQuestions = Math.min(
+            15,
+            Math.max(10, Math.floor(splitDocs.length / 1.2)),
+          );
+          break;
+        case "medium":
+        default:
+          targetQuestions = Math.min(
+            10,
+            Math.max(8, Math.floor(splitDocs.length / 1.5)),
+          );
+          break;
+      }
 
       console.log(
-        `Target questions: ${targetQuestions} (based on ${splitDocs.length} content chunks)`,
+        `Target questions: ${targetQuestions} (based on ${splitDocs.length} content chunks, length: ${length})`,
       );
 
       while (questions.length < targetQuestions && attempts < maxAttempts) {
@@ -221,35 +242,49 @@ export async function POST(request) {
 
           // Use a different prompt for reused content
           const prompt = `
-당신은 전문적인 시험 문제 출제자입니다. 주어진 내용에서 완전히 새로운 관점의 문제를 만들어주세요.
+당신은 전문적인 교육 평가 전문가입니다. 주어진 학습 자료를 바탕으로 학습자의 이해도를 정확히 측정할 수 있는 고품질 객관식 문제를 출제합니다.
 
-[지시사항]
-- 아래 내용을 다른 각도에서 분석하여 새로운 문제를 만들어주세요
-- 이전에 출제된 문제와 완전히 다른 접근 방식으로 문제를 작성하세요
-- 같은 내용이라도 다른 측면(원인, 결과, 비교, 적용 등)을 묻는 문제로 만들어주세요
+[역할과 목표]
+- 학습자가 핵심 개념을 제대로 이해했는지 평가하는 문제를 작성
+- 단순한 암기가 아닌 이해력과 적용력을 측정하는 문제 구성
+- 실제 교육 현장에서 사용할 수 있는 수준의 문제 출제
+
+[문제 작성 원칙]
+1. 핵심 개념 중심: 문서의 가장 중요한 개념, 원리, 관계를 묻는 문제
+2. 이해력 측정: 단순 암기가 아닌 개념 이해와 적용 능력 평가
+3. 명확성: 문제와 선택지가 명확하고 혼동의 여지가 없도록 작성
+4. 균형감: 모든 선택지가 그럴듯하게 보이도록 구성
+5. 다양성: 이전 문제와 다른 관점이나 측면을 다루는 문제
 
 [내용]
 ${content}
 
 [출력 형식]
-아래 형식의 JSON 객체로 정확히 출력하세요. JSON 외의 추가 텍스트는 절대 포함하지 마세요:
+아래 JSON 형식으로 정확히 출력하세요. JSON 외의 추가 텍스트는 절대 포함하지 마세요:
 {
-  "question": "완전히 새로운 관점의 문제 내용",
+  "question": "핵심 개념을 묻는 명확한 문제",
   "options": [
-    "보기 1",
-    "보기 2",
-    "보기 3",
-    "보기 4"
+    "그럴듯한 보기 1",
+    "그럴듯한 보기 2", 
+    "그럴듯한 보기 3",
+    "그럴듯한 보기 4"
   ],
-  "correctAnswer": "정답 보기"
+  "correctAnswer": "정답이 되는 보기"
 }
 
-[추가 조건]
-1. JSON은 반드시 올바른 형식을 갖춰야 합니다
-2. 이전 문제와 완전히 다른 관점으로 문제를 만들어주세요
+[품질 기준]
+1. 문제는 반드시 문서의 핵심 내용을 다뤄야 합니다
+2. 선택지는 모두 합리적이고 그럴듯해야 합니다
 3. 정답은 반드시 보기 중 하나와 정확히 일치해야 합니다
 4. 모든 텍스트는 한글로 작성해주세요
-5. 새로운 각도에서 접근하는 문제를 만들어주세요
+5. 이전 문제와 완전히 다른 내용이나 관점으로 문제를 만들어주세요
+6. 문제 난이도는 중간 정도로 설정해주세요
+
+[주의사항]
+- JSON 형식이 정확해야 합니다 (쉼표, 따옴표 등)
+- 문제와 선택지가 자연스럽고 명확해야 합니다
+- 너무 쉬운 문제나 너무 어려운 문제는 피해주세요
+- 문서의 내용을 벗어나는 문제는 작성하지 마세요
 `;
 
           try {
@@ -325,37 +360,29 @@ ${content}
           }
 
           const prompt = `
-당신은 전문적인 시험 문제 출제자이며, 학습자가 문서의 핵심 개념을 정확히 이해했는지 평가하는 객관식 문제를 출제합니다.
+간단하지만 효과적인 객관식 문제를 만들어주세요. 주어진 내용의 핵심을 파악하여 기본적인 이해를 확인하는 문제를 작성해주세요.
 
-[지시사항]
-- 아래에 주어진 "내용"을 꼼꼼히 분석한 후, 학습자가 반드시 이해해야 할 핵심 개념, 용어 정의, 주요 원리, 인과관계 등을 기반으로 문제를 작성하세요.
-- 단순한 암기나 사소한 정보(URL, 저자명 등)를 묻는 문제가 아니라, 실제 시험에서 유의미하게 출제될 수 있는 퀄리티 높은 문항을 작성해야 합니다.
-- 문제와 선택지는 모두 문서의 흐름과 맥락을 고려하여 자연스럽고 명확하게 구성해주세요.
-- 이미 출제된 문제와 중복되지 않도록 완전히 새로운 문제를 만들어주세요.
+[목표]
+- 문서의 중요한 개념이나 원리를 묻는 문제
+- 학습자가 기본적인 이해를 했는지 확인하는 수준
+- 명확하고 혼동의 여지가 없는 문제 구성
 
 [내용]
 ${content}
 
 [출력 형식]
-아래 형식의 JSON 객체로 정확히 출력하세요. JSON 외의 추가 텍스트는 절대 포함하지 마세요:
+JSON 형식으로 정확히 출력하세요:
 {
-  "question": "문제 내용",
-  "options": [
-    "보기 1",
-    "보기 2",
-    "보기 3",
-    "보기 4"
-  ],
+  "question": "명확하고 간단한 문제",
+  "options": ["보기1", "보기2", "보기3", "보기4"],
   "correctAnswer": "정답 보기"
 }
 
-[추가 조건]
-1. JSON은 반드시 올바른 형식을 갖춰야 하며, 쉼표 누락, 따옴표 오류 등이 없어야 합니다.
-2. 문제와 선택지는 모두 자연스럽고, 혼동의 여지가 없도록 작성해야 합니다.
-3. 정답은 반드시 보기 중 하나와 글자 단위로 완전히 일치해야 합니다.
-4. 모든 텍스트는 반드시 한글로 작성해주세요.
-5. 보기 항목은 모두 그럴듯해 보이도록 구성하고, 너무 눈에 띄는 오답은 피해주세요.
-6. 이전에 출제된 문제와 완전히 다른 내용으로 문제를 만들어주세요.
+[주의사항]
+- 문제는 문서의 핵심 내용을 다뤄야 합니다
+- 모든 선택지는 합리적이어야 합니다
+- 정답은 반드시 보기 중 하나와 일치해야 합니다
+- 한글로 작성해주세요
 `;
 
           try {
@@ -423,17 +450,21 @@ ${content}
         }
       }
 
-      // Ensure minimum 5 questions
-      if (questions.length < 5) {
+      // Ensure minimum questions based on length preference
+      const minQuestions = length === "short" ? 5 : length === "long" ? 10 : 8;
+      if (questions.length < minQuestions) {
         console.log(
-          `Only ${questions.length} questions generated, trying to generate more...`,
+          `Only ${questions.length} questions generated, trying to generate more to reach minimum ${minQuestions}...`,
         );
 
         // Try to generate more questions with different approach
-        const remainingAttempts = 20;
+        const remainingAttempts = 30; // Increased for longer quizzes
         let additionalAttempts = 0;
 
-        while (questions.length < 5 && additionalAttempts < remainingAttempts) {
+        while (
+          questions.length < minQuestions &&
+          additionalAttempts < remainingAttempts
+        ) {
           additionalAttempts++;
 
           // Use any available content chunk
@@ -446,18 +477,29 @@ ${content}
           }
 
           const prompt = `
-간단한 객관식 문제를 만들어주세요. 주어진 내용을 바탕으로 기본적인 이해를 확인하는 문제를 작성해주세요.
+간단하지만 효과적인 객관식 문제를 만들어주세요. 주어진 내용의 핵심을 파악하여 기본적인 이해를 확인하는 문제를 작성해주세요.
+
+[목표]
+- 문서의 중요한 개념이나 원리를 묻는 문제
+- 학습자가 기본적인 이해를 했는지 확인하는 수준
+- 명확하고 혼동의 여지가 없는 문제 구성
 
 [내용]
 ${content}
 
 [출력 형식]
-JSON 형식으로 출력하세요:
+JSON 형식으로 정확히 출력하세요:
 {
-  "question": "간단한 문제 내용",
+  "question": "명확하고 간단한 문제",
   "options": ["보기1", "보기2", "보기3", "보기4"],
   "correctAnswer": "정답 보기"
 }
+
+[주의사항]
+- 문제는 문서의 핵심 내용을 다뤄야 합니다
+- 모든 선택지는 합리적이어야 합니다
+- 정답은 반드시 보기 중 하나와 일치해야 합니다
+- 한글로 작성해주세요
 `;
 
           try {
