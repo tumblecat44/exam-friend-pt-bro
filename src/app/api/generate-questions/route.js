@@ -105,12 +105,12 @@ export async function POST(request) {
       // Generate questions
       const questions = [];
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 20;
 
-      while (questions.length < 5 && attempts < maxAttempts) {
+      while (questions.length < 10 && attempts < maxAttempts) {
         attempts++;
         console.log(
-          `Attempt ${attempts}: Generating question ${questions.length + 1}/5`,
+          `Attempt ${attempts}: Generating question ${questions.length + 1}/10`,
         );
 
         // Get a random chunk of text for question generation
