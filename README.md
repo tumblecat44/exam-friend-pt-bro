@@ -15,7 +15,6 @@ PDF 기반으로 자동으로 시험 대비 문제를 생성하는 학습 도우
 - React
 - Tailwind CSS
 - LangChain
-- OpenAI API
 
 ## 설치 방법
 
