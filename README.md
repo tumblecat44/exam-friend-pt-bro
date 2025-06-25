@@ -21,7 +21,7 @@ PDF 기반으로 자동으로 시험 대비 문제를 생성하는 학습 도우
 1. 저장소 클론
 
 ```bash
-git clone [repository-url]
+git clone https://github.com/tumblecat44/exam-friend-pt-bro.git
 cd exam-friend-pt-bro
 ```
 
