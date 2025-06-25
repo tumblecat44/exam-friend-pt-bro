@@ -33,7 +33,13 @@ npm install
 
 3. 환경 변수 설정
 
-- `.env.local` 파일을 생성하고 다음 내용을 추가:
+- `.env` 파일을 생성
+
+```
+touch .env
+```
+
+- 다음 내용을 추가:
 
 ```
 OPENAI_API_KEY=OpenAIKey
