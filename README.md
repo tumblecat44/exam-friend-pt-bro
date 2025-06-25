@@ -37,7 +37,11 @@ npm install
 - `.env.local` 파일을 생성하고 다음 내용을 추가:
 
 ```
-OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_API_KEY=OpenAIKey
+DISCORD_WEBHOOK_URL=문제 풀었을 때 사용자 확인할 웹훅 URL
+DISCORD_REVIEW_WEBHOOK_URL=사용자가 보낸 의견을 확인할 웹훅 URL
+NEXT_PUBLIC_GA_ID=구글애널리틱스ID
+
 ```
 
 4. 개발 서버 실행
