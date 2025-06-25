@@ -205,7 +205,8 @@ export async function POST(request) {
       // 인메모리 벡터 저장소를 생성합니다.
       const vectorStore = await MemoryVectorStore.fromDocuments(
         splitDocs, // 분할된 텍스트 청크들을
-        new OpenAIEmbeddings({ // OpenAI 임베딩 모델을 사용하여
+        new OpenAIEmbeddings({
+          // OpenAI 임베딩 모델을 사용하여
           openAIApiKey: process.env.OPENAI_API_KEY, // API 키를 제공하고
         }), // 벡터로 변환하여 메모리에 저장합니다.
       );
@@ -341,7 +342,6 @@ export async function POST(request) {
           - “이미지가 있어야 풀 수 있는 문제”는 출제하지 마세요.
           - 질문과 보기가 모두 문법적으로 매끄럽고 혼동되지 않아야 합니다.
           `;
-          
 
           try {
             // OpenAI 모델에 프롬프트를 보내 응답을 요청합니다.
@@ -471,7 +471,6 @@ ${content}
 - **이미지 없이 문제 텍스트만으로도 학습자가 풀 수 있어야 합니다.**
 - 해설, 정답 설명, 추가 텍스트는 출력하지 마세요.
 `;
-
 
           try {
             // OpenAI 모델에 프롬프트를 보내 응답을 요청합니다.
